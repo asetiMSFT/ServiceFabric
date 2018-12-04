@@ -5,17 +5,10 @@
 # Author(s); Andrew Setiawan
 #
 # Description:
-# Powershell script to enumerate all of applications and its objects/members' properties recursively for all levels (as shown below).
-# It also redirects the output into a text file (as well as console).
-# Created to help SF customer whom wanted to do the same thing but did not like the idea of capturing tons of screen shots in SFX.
-# 
-# Other objects/elements of cluster will be supported in future.
-#
-# 1. Application Level
-# 2. Application Type Level
-# 3. Application Service Level
-# 4. Partition Level
-# 5. Replica Level
+# Powershell script to remove CustomScriptExtension from the specified VMSS. This script was created to help customer (in conjunction with 
+# InstallCustomScriptExtension.ps1) which is provided to automatically run/distribute # DisableAutoUpdate.ps1 to auto-scale cluster which uses 
+# Windows Server 2016 where POA is unable to disable automatic update due to recent known issue with Windows Server 2016 regression on 
+# Windows Update interface. This script is meant to remove the CustomScriptExtension that was installed/added by InstallCustomScriptExtension.ps1.
 #
 # Usage sample:
 # ./InstallCustomScriptExtension.ps1 -subscriptionId $subId -clusterFQDN $clusterFQDN -vmssName $vmssName -resourceGroupName $myRGName `
@@ -24,6 +17,7 @@
 #
 # History:
 # 12/3/2018 - Created.
+# 12/4/2018 - Fixed Description.
 ######################################################################################################################################################
 
 #Requires -Version 3.0
