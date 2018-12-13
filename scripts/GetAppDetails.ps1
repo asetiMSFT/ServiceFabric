@@ -17,6 +17,7 @@
 # 
 # ./GetAppDetails.ps1 -subscriptionId $subId -clusterFQDN $clusterFQDN -doAzureLogin -useTableFormat -outputFile 'C:\TEMP\Report1.txt'
 # ./GetAppDetails.ps1 -subscriptionId $subId -clusterFQDN $clusterFQDN -certThumbprint $thumbprintOverride 
+# ./GetAppDetails.ps1 -subscriptionId $subId -clusterFQDN $clusterFQDN -certThumbprint $thumbprintOverride -getDetails -getManifest
 #
 # Parameters:
 # -subscriptionId : optional - your subscription ID (without enclosing braces). If you specify doAzureLogin switch parameter, you must specify subscriptionId parameter.
@@ -25,17 +26,21 @@
 # -outputFile     : optional - Filename/path for the output of this script.
 # -doAzureLogin   : optional - by default, the script won’t attempt to do login to your azure account. You must specify this switch if you’re opening powershell for the first time to run this script.
 # -useTableFormat : optional - when specified, this will dump the content in table (horizontal) formatting.
-
+# -getDetails     : optional - when specified, this will dump the content of Details (if any/applicable) of the object.
+# -getManifest    : optional - when specified, this will dump the content of Manifest (if any/applicable) of the object. Caution: This might be quite long!
+#
 # Notes:
 # - if you have multiple certificates with the same subject with your clusterFQDN on it, the script will not be able to determine which one to use and assume the first one to use.
 #   In future, we may update the script to improve this limitation.
 # - for string parameters, please enclose them with quotes.
+# - Only certain objects support get Details (get Descriptions) and get Manifest cmdlets.
 #
 # History:
 # 12/3/2018 - Created.
 # 12/13/2018 - Added Description, added certThumbprint parameter, fixed few bugs related with console output and parameter checking.
 #            - Updated descriptions, added more usage samples. Added try catch block for Connect-AzureRmAccount. Removed duplicate script lines.
 #            - Reversed Application Type Level and Application Level as it's causing some issues on enumerating them in wrong order previously. Corrected Numbering Prefixes in output.
+#            - Added getDetails and getManifest switch parameters. 
 ######################################################################################################################################################
 
 
@@ -123,12 +128,21 @@ Param(
 
     [Parameter(Mandatory=$false)] 
     [ValidateNotNullOrEmpty()]
-    [switch] $useTableFormat = $false
+    [switch] $useTableFormat = $false,
+
+    [Parameter(Mandatory=$false)] 
+    [ValidateNotNullOrEmpty()]
+    [switch] $getDetails = $false,
+
+    [Parameter(Mandatory=$false)] 
+    [ValidateNotNullOrEmpty()]
+    [switch] $getManifest = $false
 
 )
 
 Set-StrictMode -Version 3
 $sep0 = '===================================================================================================================================='
+$sep1 = '------------------------------------------------------------------------------------------------------------------------------------'
 Write-Host $sep0 
 Write-Host 'GetAppDetails.ps1' 
 Write-Host $sep0 
@@ -197,6 +211,35 @@ Write-Host 'Attempting to connect to cluster: ' $clusterFQDN '...'
 $cluster = Connect-ServiceFabricCluster -ConnectionEndpoint $clusterEndpoint -KeepAliveIntervalInSec 10 -X509Credential -ServerCertThumbprint $certThumbprintToUse -FindType FindByThumbprint -FindValue $certThumbprintToUse -StoreLocation CurrentUser -StoreName My  | Out-File -filepath $outputFile -Append
 Write-Host ($cluster | Format-Table | Out-String)
 
+if ($getManifest.IsPresent)
+{
+    Write-Host $sep1
+    $sep1 | Out-File -filepath $outputFile -Append
+        
+    $msg = 'CLUSTER MANIFEST'
+    Write-Host $msg
+    $msg | Out-File -filepath $outputFile -Append
+
+    Write-Host $sep1
+    $sep1 | Out-File -filepath $outputFile -Append
+
+    #NOTE: Currently this will get the latest manifest only.
+    $clusterManifest = Get-ServiceFabricClusterManifest #-ClusterManifestVersion
+    if ($clusterManifest -eq $true) 
+    {
+        ($clusterManifest | Format-Table | Out-String) | Out-File -filepath $outputFile -Append
+        Write-Host ($clusterManifest | Format-Table | Out-String)
+    }
+    else
+    {
+        $clusterManifest | Out-File -filepath $outputFile -Append
+        Write-Host ($clusterManifest | Out-String)
+    }
+    
+    ([Environment]::NewLine) | Out-File -filepath $outputFile -Append
+}
+
+
 
 $appTypes = Get-ServiceFabricApplicationType 
 
@@ -207,7 +250,10 @@ if ($appTypes -ne $null)
     foreach ($appType in $appTypes )
     {
         ++$appTypeCounter
+
+        ###########################
         #1. Application Type Level
+        ###########################
         Write-Host $sep0
         $sep0 | Out-File -filepath $outputFile -Append
 
@@ -234,10 +280,11 @@ if ($appTypes -ne $null)
         $apps = Get-ServiceFabricApplication -ApplicationTypeName $appType.ApplicationTypeName 
         $appCounter = 0
 
+        ######################
+        #2. Application Level
+        ######################
         foreach ($app in $apps)
         {
-
-            #2. Application Level
             ++$appCounter
 
             Write-Host $sep0
@@ -261,6 +308,34 @@ if ($appTypes -ne $null)
             {
                 $app | Out-File -filepath $outputFile -Append
                 Write-Host ($app | Out-String)
+            }
+
+            #NOTE: Application Details is equal to $app object (there is no Get-ServiceFabricApplicationDescription or other equivalent cmdlet currently).
+
+            if ($getManifest.IsPresent)
+            {
+                Write-Host $sep1
+                $sep1 | Out-File -filepath $outputFile -Append
+        
+                $msg = 'APPLICATION MANIFEST'
+                Write-Host $msg
+                $msg | Out-File -filepath $outputFile -Append
+
+                Write-Host $sep1
+                $sep1 | Out-File -filepath $outputFile -Append
+
+                $serviceManifest = Get-ServiceFabricApplicationManifest -ApplicationTypeName $appType.ApplicationTypeName  -ApplicationTypeVersion $appType.ApplicationTypeVersion
+                if ($useTableFormat -eq $true) 
+                {
+                    ($serviceManifest | Format-Table | Out-String) | Out-File -filepath $outputFile -Append
+                    Write-Host ($serviceManifest | Format-Table | Out-String)
+                }
+                else
+                {
+                    $serviceManifest | Out-File -filepath $outputFile -Append
+                    Write-Host ($serviceManifest | Out-String)
+                }
+                ([Environment]::NewLine) | Out-File -filepath $outputFile -Append
             }
 
             $services = Get-ServiceFabricService -ApplicationName $app.ApplicationName
@@ -292,6 +367,60 @@ if ($appTypes -ne $null)
                 {
                     $svc | Out-File -filepath $outputFile -Append
                     Write-Host ($svc | Out-String)
+                }
+
+                if ($getDetails.IsPresent)
+                {
+                    Write-Host $sep1
+                    $sep1 | Out-File -filepath $outputFile -Append
+        
+                    $msg = 'SERVICE DETAILS'
+                    Write-Host $msg
+                    $msg | Out-File -filepath $outputFile -Append
+
+                    Write-Host $sep1
+                    $sep1 | Out-File -filepath $outputFile -Append
+
+                    $serviceDetails = Get-ServiceFabricServiceDescription -ServiceName $svc.ServiceName
+                    if ($useTableFormat -eq $true) 
+                    {
+                        ($serviceDetails | Format-Table | Out-String) | Out-File -filepath $outputFile -Append
+                        Write-Host ($serviceDetails | Format-Table | Out-String)
+                    }
+                    else
+                    {
+                        $serviceDetails | Out-File -filepath $outputFile -Append
+                        Write-Host ($serviceDetails | Out-String)
+                    }
+                    ([Environment]::NewLine) | Out-File -filepath $outputFile -Append
+                }
+
+                if ($getManifest.IsPresent)
+                {
+                    Write-Host $sep1
+                    $sep1 | Out-File -filepath $outputFile -Append
+        
+                    $msg = 'SERVICE MANIFEST'
+                    Write-Host $msg
+                    $msg | Out-File -filepath $outputFile -Append
+
+                    Write-Host $sep1
+                    $sep1 | Out-File -filepath $outputFile -Append
+
+                    $serviceType = Get-ServiceFabricServiceType -ServiceTypeName $service.ServiceTypeName $appType.ApplicationTypeName  -ApplicationTypeVersion $appType.ApplicationTypeVersion
+                    $serviceManifest = Get-ServiceFabricServiceManifest -ServiceManifestName $serviceType.ServiceManifestName -ApplicationTypeName $appType.ApplicationTypeName  -ApplicationTypeVersion $appType.ApplicationTypeVersion
+
+                    if ($useTableFormat -eq $true) 
+                    {
+                        ($serviceManifest | Format-Table | Out-String) | Out-File -filepath $outputFile -Append
+                        Write-Host ($serviceManifest | Format-Table | Out-String)
+                    }
+                    else
+                    {
+                        $serviceManifest | Out-File -filepath $outputFile -Append
+                        Write-Host ($serviceManifest | Out-String)
+                    }
+                    ([Environment]::NewLine) | Out-File -filepath $outputFile -Append
                 }
 
                 $partitions = Get-ServiceFabricPartition -ServiceName $service.ServiceName
