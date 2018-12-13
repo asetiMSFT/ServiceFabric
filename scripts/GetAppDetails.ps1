@@ -2,13 +2,13 @@
 # GetAppDetails.ps1
 # Copyright (c) 2018 - Microsoft Corp.
 #
-# Author(s); Andrew Setiawan
+# Author(s): Andrew Setiawan
 #
 # Description:
 # Powershell script to dump all 5 layers in the cluster as shown in Service Fabric Explorer (SFX):
-# 1. Application Level
-# 2. Application Type Level
-# 3. Application Service Level
+# 1. Application Type Level
+# 2. Application Level
+# 3. Service Level
 # 4. Partition Level
 # 5. Replica Level
 # This script was created to help customer to enumerate all properties of application and the underlaying objects.
@@ -19,7 +19,7 @@
 # ./GetAppDetails.ps1 -subscriptionId $subId -clusterFQDN $clusterFQDN -certThumbprint $thumbprintOverride 
 #
 # Parameters:
-# -subscriptionId : your subscription ID (without enclosing braces).
+# -subscriptionId : optional - your subscription ID (without enclosing braces). If you specify doAzureLogin switch parameter, you must specify subscriptionId parameter.
 # -clusterFQDN    : your Cluster's Fully Qualified Domain Name. This is to help the script to locate the cert in your certificate store (User's MY store, not LOCAL COMPUTER's MY store).
 # -certThumbprint : optional - cert Thumbprint to use if you have multiple certs with the same clusterFQDN as subject, the script will use this thumbprint instead.
 # -outputFile     : optional - Filename/path for the output of this script.
@@ -35,6 +35,7 @@
 # 12/3/2018 - Created.
 # 12/13/2018 - Added Description, added certThumbprint parameter, fixed few bugs related with console output and parameter checking.
 #            - Updated descriptions, added more usage samples. Added try catch block for Connect-AzureRmAccount. Removed duplicate script lines.
+#            - Reversed Application Type Level and Application Level as it's causing some issues on enumerating them in wrong order previously. Corrected Numbering Prefixes in output.
 ######################################################################################################################################################
 
 
@@ -62,19 +63,6 @@ Found Certificate(s): XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 Using the Cert Thumbprint override parameter since it was specified: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 Using this Certificate to connect to cluster: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
-====================================================================================================================================
-1.1. APPLICATION LEVEL
-====================================================================================================================================
-
-ApplicationParameters  ApplicationName                       ApplicationTypeName               ApplicationTypeVersion ApplicationStatus HealthState           ApplicationDefinitionKind UpgradeTypeVersion UpgradeParameters
----------------------  ---------------                       -------------------               ---------------------- ----------------- -----------           ------------------------- ------------------ -----------------
-{"WUFrequency" = ""... fabric:/PatchOrchestrationApplication PatchOrchestrationApplicationType 1.2.2                              Ready          Ok ServiceFabricApplicationDescription
-
-
-
-====================================================================================================================================
-1.2. APPLICATION TYPE LEVEL
-====================================================================================================================================
 :
 :
 ====================================================================================================================================
@@ -103,18 +91,6 @@ Found Certificate(s): XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 Using the Cert Thumbprint override parameter since it was specified: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 Using this Certificate to connect to cluster: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
-====================================================================================================================================
-1.1. APPLICATION LEVEL
-====================================================================================================================================
-
-
-ApplicationName           : fabric:/PatchOrchestrationApplication
-ApplicationTypeName       : PatchOrchestrationApplicationType
-ApplicationTypeVersion    : 1.2.2
-ApplicationStatus         : Ready
-HealthState               : Ok
-ApplicationDefinitionKind : ServiceFabricApplicationDescription
-ApplicationParameters     : { "WUFrequency" = "" }
 :
 :
 ====================================================================================================================================
@@ -125,7 +101,7 @@ DONE.
 
 #Requires -Version 3.0
 Param(
-    [Parameter(Mandatory=$true)] 
+    [Parameter(Mandatory=$false)] 
     [ValidateNotNullOrEmpty()]
     [string] $subscriptionId,
 
@@ -157,17 +133,23 @@ Write-Host $sep0
 Write-Host 'GetAppDetails.ps1' 
 Write-Host $sep0 
 
-Write-Host "Attempting to connect to Azure using Subscription: " $subscriptionId "..."
-
 'GetAppDetails.ps1' | Out-File -filepath $outputFile
 $sep0 | Out-File -filepath $outputFile -Append
 
-$msg = 'SubscriptionId: ' + $subscriptionId
-$msg | Out-File -filepath $outputFile -Append
 
 if ($doAzureLogin.IsPresent) 
 {
-    Write-Host 'SubscriptionId: ' + $subscriptionId
+    if ([string]::IsNullOrWhitespace($subscriptionId))
+    {
+        write-host "subscriptionId parameter was not specified. Since you specified doAzureLogin switch parameter, you need to provide subscriptionId parameter."
+        write-host "Exiting now..."
+        Exit -1
+    }
+
+    Write-Host "Attempting to connect to Azure using Subscription: " $subscriptionId "..."
+    $msg = 'SubscriptionId: ' + $subscriptionId
+    $msg | Out-File -filepath $outputFile -Append
+
     try
     {
         $azureProfile = Connect-AzureRmAccount -Subscription $subscriptionId
@@ -182,12 +164,9 @@ if ($doAzureLogin.IsPresent)
         Exit -1
 
     }
+
+    Set-AzureRmContext -SubscriptionId $subscriptionId
 }
-
-Write-Host 'Attempting to connect to cluster: ' $clusterFQDN '...'
-
-Set-AzureRmContext -SubscriptionId $subscriptionId
-
 
 Write-Host 'Finding certificate for cluster: ' $clusterFQDN '...'
 
@@ -213,79 +192,90 @@ if (![string]::IsNullOrWhitespace($certThumbprint))
 } 
 
 Write-Host 'Using this Certificate to connect to cluster:' $certThumbprintToUse 
+
+Write-Host 'Attempting to connect to cluster: ' $clusterFQDN '...'
 $cluster = Connect-ServiceFabricCluster -ConnectionEndpoint $clusterEndpoint -KeepAliveIntervalInSec 10 -X509Credential -ServerCertThumbprint $certThumbprintToUse -FindType FindByThumbprint -FindValue $certThumbprintToUse -StoreLocation CurrentUser -StoreName My  | Out-File -filepath $outputFile -Append
 Write-Host ($cluster | Format-Table | Out-String)
 
 
-$apps = Get-ServiceFabricApplication 
+$appTypes = Get-ServiceFabricApplicationType 
 
-$appCounter = 0
+$appTypeCounter = 0
 
-if ($apps -ne $null)
+if ($appTypes -ne $null)
 {
-    foreach ($app in $apps)
+    foreach ($appType in $appTypes )
     {
-        ++$appCounter
-        #1. Application Level
+        ++$appTypeCounter
+        #1. Application Type Level
         Write-Host $sep0
         $sep0 | Out-File -filepath $outputFile -Append
 
-        $msg =  $appCounter.ToString() + '.1. APPLICATION LEVEL' 
+        $appTypeNumberPrefix = $appTypeCounter.ToString()
+        $msg =  $appTypeNumberPrefix + '. APPLICATION TYPE LEVEL' 
         $msg | Out-File -filepath $outputFile -Append
         Write-Host $msg
 
         Write-Host $sep0
         $sep0 | Out-File -filepath $outputFile -Append
 
-        $app = Get-ServiceFabricApplication -ApplicationName $app.ApplicationName 
+        $appType = Get-ServiceFabricApplicationType -ApplicationTypeName $appType.ApplicationTypeName 
         if ($useTableFormat -eq $true) 
         {
-            ($app | Format-Table | Out-String) | Out-File -filepath $outputFile -Append
-            Write-Host ($app | Format-Table | Out-String)
+            ($appType | Format-Table | Out-String) | Out-File -filepath $outputFile -Append
+            Write-Host ($appType | Format-Table | Out-String)
         }
         else
         {
-            $app | Out-File -filepath $outputFile -Append
-            Write-Host ($app | Out-String)
+            $appType | Out-File -filepath $outputFile -Append
+            Write-Host ($appType | Out-String)
         }
 
-        $appTypes = Get-ServiceFabricApplicationType 
+        $apps = Get-ServiceFabricApplication -ApplicationTypeName $appType.ApplicationTypeName 
+        $appCounter = 0
 
-        foreach ($appType in $appTypes)
+        foreach ($app in $apps)
         {
 
-            #2. Application Type Level
+            #2. Application Level
+            ++$appCounter
+
             Write-Host $sep0
             $sep0 | Out-File -filepath $outputFile -Append
 
-            $msg = $appCounter.ToString() + '.2. APPLICATION TYPE LEVEL' 
+            $appNumberPrefix = $appTypeNumberPrefix + '.' + $appCounter.ToString() 
+            $msg = $appNumberPrefix + '. APPLICATION LEVEL' 
             $msg | Out-File -filepath $outputFile -Append
             Write-Host $msg
 
             Write-Host $sep0
             $sep0 | Out-File -filepath $outputFile -Append
 
-            $appType = Get-ServiceFabricApplicationType -ApplicationTypeName $appType.ApplicationTypeName 
+            $app = Get-ServiceFabricApplication -ApplicationName $app.ApplicationName 
             if ($useTableFormat -eq $true) 
             {
-                ($appType | Format-Table | Out-String) | Out-File -filepath $outputFile -Append
-                Write-Host ($appType | Format-Table | Out-String)
+                ($app | Format-Table | Out-String) | Out-File -filepath $outputFile -Append
+                Write-Host ($app | Format-Table | Out-String)
             }
             else
             {
-                $appType | Out-File -filepath $outputFile -Append
-                Write-Host ($appType | Out-String)
+                $app | Out-File -filepath $outputFile -Append
+                Write-Host ($app | Out-String)
             }
 
             $services = Get-ServiceFabricService -ApplicationName $app.ApplicationName
+            $serviceCounter = 0
 
             foreach ($service in $services)
             {
-                #3. Application Service Level
+                #3. Service Level
+                ++$serviceCounter
+
                 Write-Host $sep0
                 $sep0 | Out-File -filepath $outputFile -Append
 
-                $msg = $appCounter.ToString() + '.3. APPLICATION SERVICE LEVEL' 
+                $serviceNumberPrefix = $appNumberPrefix + '.' + $serviceCounter.ToString() 
+                $msg = $serviceNumberPrefix + '. SERVICE LEVEL' 
                 $msg | Out-File -filepath $outputFile -Append
                 Write-Host $msg
 
@@ -304,15 +294,18 @@ if ($apps -ne $null)
                     Write-Host ($svc | Out-String)
                 }
 
-                #4. Partition Level
                 $partitions = Get-ServiceFabricPartition -ServiceName $service.ServiceName
-
+                $partitionCounter = 0
                 foreach ($partition in $partitions)
                 {
+                    #4. Partition Level
+                    ++$partitionCounter
+
                     Write-Host $sep0
                     $sep0 | Out-File -filepath $outputFile -Append
 
-                    $msg = $appCounter.ToString() + '.4. PARTITION LEVEL' 
+                    $partitionNumberPrefix = $serviceNumberPrefix + '.' + $partitionCounter.ToString() 
+                    $msg = $partitionNumberPrefix + '. PARTITION LEVEL' 
                     $msg | Out-File -filepath $outputFile -Append
                     Write-Host $msg
 
@@ -332,15 +325,19 @@ if ($apps -ne $null)
                         Write-Host ($prt | Out-String)
                     }
 
-                    #5. Replica Level
                     $replicas = Get-ServiceFabricReplica -PartitionId $partition.PartitionId 
+                    $replicaCounter = 0
                 
                     foreach ($replica in $replicas)
                     {
+                        #5. Replica Level
+                        ++$replicaCounter
+
                         Write-Host $sep0
                         $sep0 | Out-File -filepath $outputFile -Append
 
-                        $msg = $appCounter.ToString() + '.5. REPLICA LEVEL' 
+                        $replicaNumberPrefix = $partitionNumberPrefix + '.' + $replicaCounter.ToString() 
+                        $msg = $replicaNumberPrefix + '. REPLICA LEVEL' 
                         $msg | Out-File -filepath $outputFile -Append
                         Write-Host $msg
 
