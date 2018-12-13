@@ -5,7 +5,12 @@
 # Author(s); Andrew Setiawan
 #
 # Description:
-# Powershell script to dump all 5 layers in the cluster as shown in Service Fabric Explorer (SFX).
+# Powershell script to dump all 5 layers in the cluster as shown in Service Fabric Explorer (SFX):
+# 1. Application Level
+# 2. Application Type Level
+# 3. Application Service Level
+# 4. Partition Level
+# 5. Replica Level
 # This script was created to help customer to enumerate all properties of application and the underlaying objects.
 #
 # Usage sample:
@@ -29,8 +34,94 @@
 # History:
 # 12/3/2018 - Created.
 # 12/13/2018 - Added Description, added certThumbprint parameter, fixed few bugs related with console output and parameter checking.
+#            - Updated descriptions, added more usage samples. Added try catch block for Connect-AzureRmAccount. Removed duplicate script lines.
 ######################################################################################################################################################
 
+
+<# 
+More samples:
+
+PS C:\> $subId = 'xxxxxxx-xxxx-xxxx-xxxxxxxxxxxxxxxxxxxxx’
+PS C:\> $certThumbprint = XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+PS C:\> $clusterFQDN = 'XXXXXXXXXXXXXX.<region>.cloudapp.azure.com'
+PS C:\> ./GetAppDetails.ps1 -subscriptionId $subId -clusterFQDN $clusterFQDN -doAzureLogin -useTableFormat -outputFile 'C:\TEMP\Report1.txt'
+====================================================================================================================================
+GetAppDetails.ps1
+====================================================================================================================================
+Attempting to connect to Azure using Subscription:  xxxxxxx-xxxx-xxxx-xxxxxxxxxxxxxxxxxxxxx ...
+Attempting to connect to cluster:  XXXXXXXXXXXXX.<region>.cloudapp.azure.com ...
+
+Name             : Microsoft Azure Internal Consumption (xxxxxxx-xxxx-xxxx-xxxxxxxxxxxxxxxxxxxxx) - XXXXXXXXXXXXXXXXXXXXXXXXXXX
+Account          : XXXXXXXXXXXXXXXXXXXXXXXXX
+SubscriptionName : Microsoft Azure Internal Consumption
+TenantId         : xxxxxxx-xxxx-xxxx-xxxxxxxxxxxxxxxxxxxxx 
+Environment      : AzureCloud
+
+Finding certificate for cluster:  XXXXXXXXXXXXX.<region>.cloudapp.azure.com ... 
+Found Certificate(s): XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+Using the Cert Thumbprint override parameter since it was specified: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+Using this Certificate to connect to cluster: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+====================================================================================================================================
+1.1. APPLICATION LEVEL
+====================================================================================================================================
+
+ApplicationParameters  ApplicationName                       ApplicationTypeName               ApplicationTypeVersion ApplicationStatus HealthState           ApplicationDefinitionKind UpgradeTypeVersion UpgradeParameters
+---------------------  ---------------                       -------------------               ---------------------- ----------------- -----------           ------------------------- ------------------ -----------------
+{"WUFrequency" = ""... fabric:/PatchOrchestrationApplication PatchOrchestrationApplicationType 1.2.2                              Ready          Ok ServiceFabricApplicationDescription
+
+
+
+====================================================================================================================================
+1.2. APPLICATION TYPE LEVEL
+====================================================================================================================================
+:
+:
+====================================================================================================================================
+End of Document
+====================================================================================================================================
+DONE.
+
+
+
+PS C:\> ./GetAppDetails.ps1 -subscriptionId $subId -clusterFQDN $clusterFQDN -certThumbprint $certThumbprint -outputFile 'C:\TEMP\Report2.txt'
+====================================================================================================================================
+GetAppDetails.ps1
+====================================================================================================================================
+Attempting to connect to Azure using Subscription:  xxxxxxx-xxxx-xxxx-xxxxxxxxxxxxxxxxxxxxx ...
+Attempting to connect to cluster:  XXXXXXXXXXXXX.<region>.cloudapp.azure.com ...
+
+
+Name             : Microsoft Azure Internal Consumption (xxxxxxx-xxxx-xxxx-xxxxxxxxxxxxxxxxxxxxx) - XXXXXXXXXXXXXXXXXXXXXX
+Account          : XXXXXXXXXXXXXXXXXXXXXXXXX
+SubscriptionName : Microsoft Azure Internal Consumption
+TenantId         : xxxxxxx-xxxx-xxxx-xxxxxxxxxxxxxxxxxxxxx
+Environment      : AzureCloud
+
+Finding certificate for cluster:  XXXXXXXXXXXXX.<region>.cloudapp.azure.com ... 
+Found Certificate(s): XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+Using the Cert Thumbprint override parameter since it was specified: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+Using this Certificate to connect to cluster: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+====================================================================================================================================
+1.1. APPLICATION LEVEL
+====================================================================================================================================
+
+
+ApplicationName           : fabric:/PatchOrchestrationApplication
+ApplicationTypeName       : PatchOrchestrationApplicationType
+ApplicationTypeVersion    : 1.2.2
+ApplicationStatus         : Ready
+HealthState               : Ok
+ApplicationDefinitionKind : ServiceFabricApplicationDescription
+ApplicationParameters     : { "WUFrequency" = "" }
+:
+:
+====================================================================================================================================
+End of Document
+====================================================================================================================================
+DONE.
+#>
 
 #Requires -Version 3.0
 Param(
@@ -77,10 +168,21 @@ $msg | Out-File -filepath $outputFile -Append
 if ($doAzureLogin.IsPresent) 
 {
     Write-Host 'SubscriptionId: ' + $subscriptionId
-    Connect-AzureRmAccount
-    Set-AzureRmContext -SubscriptionId $subscriptionId
-}
+    try
+    {
+        $azureProfile = Connect-AzureRmAccount -Subscription $subscriptionId
+    }
+    catch
+    {
+        write-host "Caught an exception:" -ForegroundColor Red
+        write-host "Exception Type: $($_.Exception.GetType().FullName)" -ForegroundColor Red
+        write-host "Exception Message: $($_.Exception.Message)" -ForegroundColor Red
+        
+        write-host "Exiting now..."
+        Exit -1
 
+    }
+}
 
 Write-Host 'Attempting to connect to cluster: ' $clusterFQDN '...'
 
