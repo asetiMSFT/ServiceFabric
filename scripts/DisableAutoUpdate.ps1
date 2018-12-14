@@ -1,4 +1,30 @@
-﻿#Only works up to Win2012.
+﻿######################################################################################################################################################
+# DisableAutoUpdate.ps1
+# Copyright (c) 2018 - Microsoft Corp.
+#
+# Author(s): Andrew Setiawan
+#
+# Description:
+# Powershell script to disable AutoUpdate by adding special registry key & value.
+# This script was created to help people to mitigate problem/bug on Windows Server 2016 (as of when this script was written) where
+# the WU API interface has a regression and does not work as it's supposed to be, causing AutoUpdate to be still active.
+# This script may not be needed anymore when the bug is fixed, but you may use this regardless of that.
+# It is meant to be used/called once by CustomScriptExtension in your Service Fabric Cluster (see InstallCustomScriptExtension.ps1).
+#
+# Usage sample:
+# There is no parameters needed.
+# 
+# ./DisableAutoUpdate.ps1 
+#
+# Notes:
+# - This ps1 script file is re-entrant and safe to be called from CustomScriptExtension: meaning it can be executed many times without problem. 
+#
+# History:
+# 12/2/2018  - Created.
+# 12/13/2018 - Added descriptions.
+######################################################################################################################################################
+
+#Only works up to Win2012.
 #https://docs.microsoft.com/en-us/windows/desktop/api/wuapi/ne-wuapi-tagautomaticupdatesnotificationlevel
 #http://www.darrylvanderpeijl.com/windows-server-2016-update-settings/
 $AUSettings = (New-Object -com "Microsoft.Update.AutoUpdate").Settings 
