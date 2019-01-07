@@ -1,4 +1,4 @@
-﻿######################################################################################################################################################
+######################################################################################################################################################
 # InstallCustomScriptExtension.ps1
 # Copyright (c) 2018 - Microsoft Corp.
 #
@@ -135,9 +135,9 @@ if ($doAzureLogin.IsPresent)
         Exit -1
 
     }
-
-    Set-AzureRmContext -SubscriptionId $subscriptionId
 }
+
+Set-AzureRmContext -SubscriptionId $subscriptionId
 
 
 Write-Host 'Finding certificate for cluster: ' $clusterFQDN '...'
