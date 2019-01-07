@@ -1,4 +1,4 @@
-﻿######################################################################################################################################################
+######################################################################################################################################################
 # InstallCustomScriptExtension.ps1
 # Copyright (c) 2018 - Microsoft Corp.
 #
@@ -140,35 +140,43 @@ if ($doAzureLogin.IsPresent)
 }
 
 
-Write-Host 'Finding certificate for cluster: ' $clusterFQDN '...'
-
-$clusterEndpoint = $clusterFQDN+':19000' 
-$certThumbprints = (Get-ChildItem -Path Cert:\CurrentUser\My | where {$_.Subject -like "*$clusterFQDN*" }).Thumbprint 
-
-#Client Certificate for the cluster MUST already be installed in your user account's certificate store (don't use Local Machine's certificate store!).
-#NOTE: There could be more than one certificate with the same subject. We'll use the first one found.
-Write-Host 'Found Certificate(s):' $certThumbprints 
-if ($certThumbprints.Length > 1)
-{
-    $certThumbprintToUse = $certThumbprints[0]
-}
-else
-{
-    $certThumbprintToUse = $certThumbprints
-}
-
 if (![string]::IsNullOrWhitespace($certThumbprint))
 {
     Write-Host 'Using the Cert Thumbprint override parameter since it was specified:' $certThumbprint
     $certThumbprintToUse = $certThumbprint
-} 
+}
+else
+{
+    Write-Host 'Finding certificate for cluster: ' $clusterFQDN '...'
 
-Write-Host 'Using this Certificate to connect to cluster:' $certThumbprintToUse 
+    $clusterEndpoint = $clusterFQDN+':19000' 
+    $certThumbprints = (Get-ChildItem -Path Cert:\CurrentUser\My | where {$_.Subject -like "*$clusterFQDN*" }).Thumbprint 
+
+    #Client Certificate for the cluster MUST already be installed in your user account's certificate store (don't use Local Machine's certificate store!).
+    #NOTE: There could be more than one certificate with the same subject. We'll use the first one found.
+    Write-Host 'Found Certificate(s):' $certThumbprints 
+    if ($certThumbprints.Length > 1)
+    {
+        $certThumbprintToUse = $certThumbprints[0]
+    }
+    else
+    {
+        $certThumbprintToUse = $certThumbprints
+    }
+}
 
 Write-Host 'Attempting to connect to cluster: ' $clusterFQDN '...'
 
-$cluster = Connect-ServiceFabricCluster -ConnectionEndpoint $clusterEndpoint -KeepAliveIntervalInSec 10 -X509Credential -ServerCertThumbprint $certThumbprintToUse -FindType FindByThumbprint -FindValue $certThumbprintToUse -StoreLocation CurrentUser -StoreName My  
+if($certThumbprintToUse -eq 'unsecured')
+{
+    $cluster = Connect-ServiceFabricCluster -ConnectionEndpoint $clusterEndpoint
+}
+else
+{
+    Write-Host 'Using this Certificate to connect to cluster:' $certThumbprintToUse 
 
+    $cluster = Connect-ServiceFabricCluster -ConnectionEndpoint $clusterEndpoint  ## -KeepAliveIntervalInSec 10 -X509Credential -ServerCertThumbprint $certThumbprintToUse -FindType FindByThumbprint -FindValue $certThumbprintToUse -StoreLocation CurrentUser -StoreName My  
+}
 
 $Settings = @{"fileUris" = $fileUris};
 
