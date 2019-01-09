@@ -1,4 +1,4 @@
-######################################################################################################################################################
+####################################################################################################################################################################################
 # InstallCustomScriptExtension.ps1
 # Copyright (c) 2018 - Microsoft Corp.
 #
@@ -11,11 +11,16 @@
 # You can specify any files and command to execute in the parameters.
 #
 # Parameters:
-# -subscriptionId     : optional - your subscription ID (without enclosing braces). If you specify doAzureLogin switch parameter, you must specify subscriptionId parameter.
-# -clusterFQDN        : your Cluster's Fully Qualified Domain Name. This is to help the script to locate the cert in your certificate store (User's MY store, not LOCAL COMPUTER's MY store).
-# -certThumbprint     : optional - cert Thumbprint to use if you have multiple certs with the same clusterFQDN as subject, the script will use this thumbprint instead.
+# -subscriptionId     : optional - your subscription ID (without enclosing braces). 
+#                       If you specify doAzureLogin switch parameter, you must specify subscriptionId parameter.
+# -clusterFQDN        : your Cluster's Fully Qualified Domain Name. 
+#                       This is to help the script to locate the cert in your certificate store (User's MY store, not LOCAL COMPUTER's MY store).
+# -certThumbprint     : optional - cert Thumbprint to use if you have multiple certs with the same clusterFQDN as subject, 
+#                       the script will use this thumbprint instead.
+#                       For unsecure cluster, you may use 'unsecured' for certThumbprint value to allow connecting to unsecure cluster without cert thumbprint.
 # -fileUris           : array of file location Uri strings (i.e.: blob uri). At minimum you must specify one uri. The Uri must be accessible by the cluster.
-# -commandToExecute   : optional - command (i.e.: powershell calling the script that you specify in fileUris) that you want the CSE to execute when it is invoked. See the notes regarding of the script.
+# -commandToExecute   : optional - command (i.e.: powershell calling the script that you specify in fileUris) that you want the CSE to execute when it is invoked. 
+#                       See the notes regarding of the script.
 # -storageAccountName : the storage account name for accessing the fileUris specified (currently all file uris must be under the same storage account).
 # -storageAccountKey  : the storage account key for accessing the fileUris specified (currently all file uris must be under the same storage account).
 # -vmssName           : the target VMSS that you want to install the extension.
@@ -23,29 +28,37 @@
 # -vmssExtensionName  : optional - the name of extension to install Default: CustomScriptExtension.
 # -location           : optional - the region name of your cluster. Default is westus.
 # -extensionVersion   : optional - the version of the extension that you want to install. Default is 1.7.
-# -doAzureLogin       : optional - by default, the script won’t attempt to do login to your azure account. You must specify this switch if you’re opening powershell for the first time to run this script.
+# -doAzureLogin       : optional - by default, the script won’t attempt to do login to your azure account. 
+#                       You must specify this switch if you’re opening powershell for the first time to run this script.
 #
 # Usage sample:
 # $fileUris = @("https://mystorageaccount.blob.core.windows.net/scripts/MyScriptToExecute.ps1") 
 # $commandToExecute = "powershell -ExecutionPolicy Unrestricted -File MyScriptToExecute.ps1"
 # 
-# ./InstallCustomScriptExtension.ps1 -subscriptionId $subId -clusterFQDN $clusterFQDN -fileUris $fileUris -storageaccname $storageaccname -storageAccountKey $storageAccountKey `
+# ./InstallCustomScriptExtension.ps1 -subscriptionId $subId -clusterFQDN $clusterFQDN -fileUris $fileUris `
+# -storageAccountName $storageaccname -storageAccountKey $storageAccountKey `
 # -commandToExecute $commandToExecute -vmssName $vmssName -resourceGroupName $myRGName -location $location -extensionVersion $extensionVersion `
 # -doAzureLogin
 #
 # Notes:
-# - if you have multiple certificates with the same subject with your clusterFQDN on it, the script will not be able to determine which one to use and assume the first one to use.
+# - if you have multiple certificates with the same subject with your clusterFQDN on it, the script will not be able to determine which one to use
+#   and assume the first one to use.
 #   In future, we may update the script to improve this limitation.
 # - for string parameters, please enclose them with quotes.
 # - ps1 script file must be re-entrant, meaning it can be executed many times without problem. It must be short and quick.
-# - You can specify multiple files in fileUris, however the command only can be one. If you're missing command or the command is malformed, your extension deployment may fail.
+# - You can specify multiple files in fileUris, however the command only can be one. 
+#   If you're missing command or the command is malformed, your extension deployment may fail.
+# - fileUris must point to blob storage. If you use file storage, you may encounter error during deployment as it expects it to be a blob.
 #
 # History:
-# 12/3/2018  - Created.
-# 12/4/2018  - Fixed Description.
-# 12/13/2018 - Updated Description, added certThumbprint parameter, fixed few bugs related with console output and parameter checking.
-#            - Removed doConnectToCluster and useTableFormat parameters. Bug fixes for resource group and parameter handling.
-######################################################################################################################################################
+# 12/3/2018  - [asetiMSFT] - Created.
+# 12/4/2018  - [asetiMSFT] - Fixed Description.
+# 12/13/2018 - [asetiMSFT] - Updated Description, added certThumbprint parameter, fixed few bugs related with console output and parameter checking.
+#                          - Removed doConnectToCluster and useTableFormat parameters. Bug fixes for resource group and parameter handling.
+# 01/08/2018 - [padillah]  - Added 'unsecured' check to certThumbprint.
+#                          - Moved Set-AzureRmContext outside of the login so it always happens.
+# 01/09/2018 - [asetiMSFT] - Merged previous changes to master. Fixed a typo in header and added/reformatted the notes here.
+####################################################################################################################################################################################
 
 
 #Requires -Version 3.0
