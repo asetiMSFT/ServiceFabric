@@ -135,9 +135,9 @@ if ($doAzureLogin.IsPresent)
         Exit -1
 
     }
-
-    Set-AzureRmContext -SubscriptionId $subscriptionId
 }
+
+Set-AzureRmContext -SubscriptionId $subscriptionId
 
 
 if (![string]::IsNullOrWhitespace($certThumbprint))
